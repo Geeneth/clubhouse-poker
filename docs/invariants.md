@@ -12,7 +12,7 @@ Rules that must hold at all times, in every code path. They come from the vision
 4. **A player can never bet more than their stack.** A bet for the whole stack is an all-in.
 5. **Pots are paid out in full.** After showdown (or when everyone else folds) the pot and all side pots are empty and every chip has gone to an eligible player.
 6. **Side pots are correct.** A player can only win from a pot they contributed to, and every pot is split only among eligible players still in the hand.
-7. **Ties split the pot, and nothing is lost.** Split pots are divided deterministically, and any indivisible remainder goes to a player, never disappears.
+7. **Ties split the pot, and nothing is lost.** Each pot is split evenly among its tied winners. Any indivisible remainder is given out one chip at a time, starting with the tied winner closest to the left of the dealer button and continuing clockwise (the casino odd chip rule). Each side pot is split separately. A remainder never disappears.
 
 ## Cards
 
