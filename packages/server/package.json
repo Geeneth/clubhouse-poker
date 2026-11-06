@@ -1,0 +1,10 @@
+{
+  "name": "@clubhouse/server",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": { "typecheck": "tsc -p tsconfig.json" },
+  "dependencies": { "@clubhouse/engine": "workspace:*", "ws": "^8.18.0" },
+  "devDependencies": { "@types/ws": "^8.5.0" }
+}
