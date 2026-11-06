@@ -2,14 +2,17 @@
   "name": "clubhouse-poker",
   "private": true,
   "packageManager": "pnpm@12.18.0",
-  "engines": { "node": ">=22" },
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "test": "vitest run",
     "typecheck": "pnpm -r typecheck"
   },
   "devDependencies": {
+    "@clubhouse/engine": "workspace:*",
+    "@types/node": "^22.0.0",
     "typescript": "^5.9.0",
-    "vitest": "^3.2.0",
-    "@types/node": "^22.0.0"
+    "vitest": "^3.2.0"
   }
 }
