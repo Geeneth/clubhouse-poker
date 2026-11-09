@@ -1,0 +1,66 @@
+name: CI
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+
+permissions:
+  contents: read
+  issues: read
+  pull-requests: read
+
+jobs:
+  checks:
+    name: Typecheck and test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm test
+
+  locked-files:
+    name: Locked files guard
+    runs-on: ubuntu-latest
+    env:
+      OWNER: Geeneth
+      APPROVAL_LABEL: locked-change-approved
+      GH_TOKEN: ${{ github.token }}
+      PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+      PR_NUMBER: ${{ github.event.pull_request.number }}
+      BASE_SHA: ${{ github.event.pull_request.base.sha }}
+      HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Block unapproved changes to docs/invariants.md and tests/locked/
+        run: |
+          changed=$(git diff --name-only "$BASE_SHA...$HEAD_SHA" -- docs/invariants.md tests/locked/)
+          if [ -z "$changed" ]; then
+            echo "No locked files changed."
+            exit 0
+          fi
+          echo "Locked files changed:"
+          echo "$changed"
+
+          if [ "$PR_AUTHOR" = "$OWNER" ]; then
+            echo "Authored by $OWNER: approved."
+            exit 0
+          fi
+
+          # Approved only if the label is currently on the PR and $OWNER applied it last.
+          last_actor=$(gh api --paginate "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/events" \
+            --jq ".[] | select(.event == \"labeled\" or .event == \"unlabeled\") | select(.label.name == \"$APPROVAL_LABEL\") | \"\(.event) \(.actor.login)\"" | tail -n 1)
+          if [ "$last_actor" = "labeled $OWNER" ]; then
+            echo "Label '$APPROVAL_LABEL' applied by $OWNER: approved."
+            exit 0
+          fi
+
+          echo "::error::This PR changes locked files. Only $OWNER may change them: open the PR as $OWNER, or have $OWNER add the '$APPROVAL_LABEL' label."
+          exit 1
