@@ -52,3 +52,5 @@ Rules that must hold at all times, in every code path. They come from the vision
 29. **The engine is pure.** No networking, no clocks, no global state and no randomness it does not receive from outside. Given the same state, input and shuffle, it returns the same result.
 30. **Game rules live only in the engine.** The server and web app never re-implement rules.
 31. **Coins are fake.** There is no real-money play in any form.
+
+<!-- CLB-9: guard test, do not merge -->
