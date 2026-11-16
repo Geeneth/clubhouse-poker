@@ -3,3 +3,4 @@ export const ENGINE_NAME = "clubhouse-engine";
 
 export * from "./cards";
 export * from "./deck";
+export * from "./evaluator";
