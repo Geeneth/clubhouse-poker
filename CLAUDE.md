@@ -17,6 +17,8 @@ Read `/context/vision.md` and `/context/spec.md` in full. They describe the game
 7. **Hidden cards never leave the server** except to their owner. See `docs/invariants.md`.
 8. Ask before making big stack decisions (new frameworks, new runtime dependencies of note).
 
+We now use a develop branch: all ticket branches start from develop, and all pull requests go into develop. main is only updated by me, when I merge develop into it. Starting from an up-to-date develop, on a branch called develop-workflow: update CLAUDE.md to say this, and make sure the CI workflow (including the locked-files guard) runs on pull requests into both develop and main. Open the PR into develop.
+
 ## Repo layout
 
 ```
