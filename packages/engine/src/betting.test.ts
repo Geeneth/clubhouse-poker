@@ -74,6 +74,16 @@ describe("rejections change nothing", () => {
   test("check facing a bet", () => expectReject(h, "p0", { type: "check" }, /cannot check/));
   test("below the minimum raise", () => expectReject(h, "p0", { type: "raise", amount: 15 }, /minimum raise is to 20/));
   test("more than the stack", () => expectReject(h, "p0", { type: "raise", amount: 101 }, /only have 100/));
+  test("unknown action type", () => {
+    expectReject(h, "p0", { type: "bogus" } as unknown as Action, /Unknown action/);
+    expectReject(h, "p0", {} as unknown as Action, /Unknown action/);
+    expectReject(h, "p0", null as unknown as Action, /Unknown action/);
+  });
+  test("bet or raise with a missing or non-numeric amount", () => {
+    expectReject(h, "p0", { type: "raise" } as unknown as Action, /whole number/);
+    expectReject(h, "p0", { type: "raise", amount: "50" } as unknown as Action, /whole number/);
+    expectReject(h, "p0", { type: "bet" } as unknown as Action, /whole number|already a bet/);
+  });
   test("fractional or negative amounts", () => {
     expectReject(h, "p0", { type: "raise", amount: 20.5 }, /whole number/);
     expectReject(h, "p0", { type: "raise", amount: -1 }, /whole number/);

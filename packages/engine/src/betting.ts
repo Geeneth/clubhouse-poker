@@ -102,6 +102,7 @@ export function legalActions(hand: HandState): LegalAction[] {
  * (the input hand is never modified).
  */
 export function applyAction(hand: HandState, id: string, action: Action): ActionResult {
+  if (action === null || typeof action !== "object") return reject("Unknown action");
   const bad = whyNotTurn(hand, id);
   if (bad) return reject(bad);
   const p = hand.players.find((x) => x.id === id)!;
@@ -143,6 +144,8 @@ export function applyAction(hand: HandState, id: string, action: Action): Action
       to = a;
       break;
     }
+    default:
+      return reject(`Unknown action ${JSON.stringify((action as { type?: unknown } | null)?.type)}`);
   }
   const added = to - p.bet;
   const size = to - hand.currentBet;
