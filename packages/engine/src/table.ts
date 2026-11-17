@@ -59,8 +59,8 @@ export interface HandState {
   readonly board: readonly Card[];
   /** Chips swept in from earlier streets (betting rounds, CLB-16, move bets here). */
   readonly pot: number;
-  /** "betting" while play continues, "showdown" after the river betting, "fold" when all but one folded. */
-  readonly stage: "betting" | "showdown" | "fold";
+  /** "betting" while play continues, "showdown" after the river betting, "fold" when all but one folded, "complete" once pots are paid out. */
+  readonly stage: "betting" | "showdown" | "fold" | "complete";
   /** The highest bet on the current street. */
   readonly currentBet: number;
   /** Size of the last full raise (at least the big blind): the minimum raise increment. */
