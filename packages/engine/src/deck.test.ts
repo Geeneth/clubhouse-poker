@@ -1,5 +1,15 @@
 import { describe, expect, test } from "vitest";
-import { cardId, createDeck, deal, EmptyDeckError, shuffle } from "./index";
+import {
+  cardId,
+  createDeck,
+  deal,
+  DuplicateCardError,
+  EmptyDeckError,
+  InvalidCardError,
+  InvalidDeckError,
+  InvalidSeedError,
+  shuffle,
+} from "./index";
 
 const ids = (cards: readonly { rank: number; suit: string }[]) =>
   cards.map((c) => cardId(c as never));
@@ -71,5 +81,39 @@ describe("deal", () => {
   test("rejects invalid counts", () => {
     expect(() => deal(createDeck(), -1)).toThrow(RangeError);
     expect(() => deal(createDeck(), 1.5)).toThrow(RangeError);
+  });
+});
+
+describe("validation", () => {
+  const bad = [
+    ["rank 15", { rank: 15, suit: "clubs" }],
+    ["rank 1", { rank: 1, suit: "clubs" }],
+    ["fractional rank", { rank: 2.5, suit: "clubs" }],
+    ["string rank", { rank: "2", suit: "clubs" }],
+    ["made-up suit", { rank: 5, suit: "a" }],
+    ["null", null],
+  ] as const;
+  for (const [name, card] of bad) {
+    test(`rejects ${name} in shuffle and deal`, () => {
+      const deck = [...createDeck().slice(1), card as never];
+      expect(() => shuffle(deck, 1)).toThrow(InvalidCardError);
+      expect(() => deal(deck, 1)).toThrow(InvalidCardError);
+    });
+  }
+  test("rejects duplicate or missing cards when shuffling", () => {
+    const full = createDeck();
+    expect(() => shuffle([...full.slice(1), full[1]!], 1)).toThrow(DuplicateCardError);
+    expect(() => shuffle(full.slice(1), 1)).toThrow(InvalidDeckError);
+    expect(() => shuffle([...full, full[0]!], 1)).toThrow(DuplicateCardError);
+  });
+  test("deal rejects a deck with duplicates", () => {
+    const c = createDeck()[0]!;
+    expect(() => deal([c, c], 1)).toThrow(DuplicateCardError);
+  });
+  test("rejects invalid seeds", () => {
+    for (const seed of [NaN, Infinity, -Infinity, 1.5, "1" as never]) {
+      expect(() => shuffle(createDeck(), seed)).toThrow(InvalidSeedError);
+    }
+    expect(() => shuffle(createDeck(), -3)).not.toThrow();
   });
 });
