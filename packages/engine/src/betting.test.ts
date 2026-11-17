@@ -129,10 +129,32 @@ describe("minimum raise", () => {
     expect(h.currentBet).toBe(35);
     expect(h.minRaise).toBe(20);
     expect(who(h)).toBe("p0");
-    expect(types(h)).toEqual(["fold", "call", "allIn"]);
+    expect(types(h)).toEqual(["fold", "call"]);
     expect(applyAction(h, "p0", { type: "raise", amount: 100 }).ok).toBe(false);
     h = act(h, "p0", { type: "call" });
-    expect(types(h)).toEqual(["fold", "call", "allIn"]);
+    expect(types(h)).toEqual(["fold", "call"]);
+  });
+  test("after a short all-in, a player not reopened cannot raise or shove (full-stack too)", () => {
+    let h = mk([1000, 1000, 130]);
+    h = act(h, "p0", { type: "raise", amount: 100 });
+    h = act(h, "p1", { type: "fold" });
+    h = act(h, "p2", { type: "allIn" }); // to 130, +30 < 90: short
+    expect(who(h)).toBe("p0");
+    expect(legalActions(h)).toEqual([{ type: "fold" }, { type: "call", amount: 30 }]);
+    for (const a of [{ type: "raise", amount: 1000 }, { type: "raise", amount: 500 }, { type: "allIn" }] as Action[]) {
+      const r = applyAction(h, "p0", a);
+      expect(r.ok).toBe(false);
+      if (!r.ok) expect(r.reason).toMatch(/not reopened/);
+    }
+    expect(applyAction(h, "p0", { type: "call" }).ok).toBe(true);
+  });
+  test("a short all-in call is still allowed when not reopened", () => {
+    let h = mk([1000, 1000, 130]);
+    h = act(h, "p0", { type: "raise", amount: 100 });
+    h = act(h, "p1", { type: "call" });
+    h = act(h, "p2", { type: "allIn" });
+    expect(who(h)).toBe("p0");
+    expect(types(h)).toEqual(["fold", "call"]);
   });
   test("a short all-in still lets players who have not acted raise", () => {
     let h = mk([200, 200, 200, 14]);

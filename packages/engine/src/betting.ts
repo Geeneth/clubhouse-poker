@@ -93,7 +93,8 @@ export function legalActions(hand: HandState): LegalAction[] {
   if (p.raiseOpen && max >= min) {
     out.push(hand.currentBet === 0 ? { type: "bet", min, max } : { type: "raise", min, max });
   }
-  if (p.stack > 0) out.push({ type: "allIn", amount: p.stack });
+  // Without a reopened raise, going all-in is only allowed when it does not exceed the current bet (a short call).
+  if (p.stack > 0 && (p.raiseOpen || max <= hand.currentBet)) out.push({ type: "allIn", amount: p.stack });
   return out;
 }
 
@@ -137,7 +138,6 @@ export function applyAction(hand: HandState, id: string, action: Action): Action
       if (action.type === "bet" && hand.currentBet > 0) return reject(`There is already a bet of ${hand.currentBet}; raise instead`);
       if (action.type === "raise" && hand.currentBet === 0) return reject("There is no bet to raise; bet instead");
       if (a > max) return reject(`You only have ${p.stack} chips behind (most you can bet is ${max})`);
-      if (!p.raiseOpen && a < max) return reject("The betting was not reopened to you; you can only call, fold or go all-in");
       if (a < hand.currentBet + hand.minRaise && a < max) {
         return reject(`The minimum ${action.type} is to ${hand.currentBet + hand.minRaise}`);
       }
@@ -151,7 +151,7 @@ export function applyAction(hand: HandState, id: string, action: Action): Action
   const size = to - hand.currentBet;
   const raised = size > 0;
   const fullRaise = raised && size >= hand.minRaise;
-  if (raised && !p.raiseOpen && !fullRaise && to !== max) return reject("The betting was not reopened to you");
+  if (raised && !p.raiseOpen) return reject("The betting was not reopened to you; you can only call or fold");
   const players = hand.players.map((x) => {
     if (x === p) {
       const stack = x.stack - added;
