@@ -40,7 +40,11 @@ export interface HandSeat {
   readonly stack: number;
   /** Chips bet on the current street. */
   readonly bet: number;
-  readonly status: "active" | "allIn";
+  readonly status: "active" | "allIn" | "folded";
+  /** Total chips put in over the whole hand (all streets, blinds included). CLB-17 builds pots from this. */
+  readonly contributed: number;
+  /** True if this player may still raise (they have not acted since the last full raise). */
+  readonly raiseOpen: boolean;
   readonly hole: readonly [Card, Card];
 }
 
@@ -55,6 +59,12 @@ export interface HandState {
   readonly board: readonly Card[];
   /** Chips swept in from earlier streets (betting rounds, CLB-16, move bets here). */
   readonly pot: number;
+  /** "betting" while play continues, "showdown" after the river betting, "fold" when all but one folded, "complete" once pots are paid out. */
+  readonly stage: "betting" | "showdown" | "fold" | "complete";
+  /** The highest bet on the current street. */
+  readonly currentBet: number;
+  /** Size of the last full raise (at least the big blind): the minimum raise increment. */
+  readonly minRaise: number;
   /** Seat that acts next, or null if nobody can act (everyone is all-in). */
   readonly toAct: number | null;
   /** The undealt cards. Never to be sent to clients. */
@@ -163,6 +173,8 @@ export function startHand(table: Table, deck: Deck, blinds: Blinds): HandState {
       id: p.id,
       stack,
       bet,
+      contributed: bet,
+      raiseOpen: true,
       status: stack === 0 ? "allIn" : "active",
       hole: [first.get(s)!, second.get(s)!],
     };
@@ -172,7 +184,8 @@ export function startHand(table: Table, deck: Deck, blinds: Blinds): HandState {
   const canAct = players.filter((p) => p.status === "active").map((p) => p.seat);
   const toAct = canAct.length === 0 ? null : nextIn(canAct, bigBlindSeat, seatCount);
 
-  return { street: "preflop", button, smallBlindSeat, bigBlindSeat, blinds, players, board: [], pot: 0, toAct, deck: rest };
+  return { street: "preflop", button, smallBlindSeat, bigBlindSeat, blinds, players, board: [], pot: 0,
+    stage: "betting", currentBet: Math.max(...players.map((p) => p.bet)), minRaise: blinds.big, toAct, deck: rest };
 }
 
 const NEXT_STREET: Record<Street, { next: Street; count: number } | null> = {

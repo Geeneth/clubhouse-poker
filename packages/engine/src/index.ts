@@ -5,3 +5,5 @@ export * from "./cards";
 export * from "./deck";
 export * from "./evaluator";
 export * from "./table";
+export * from "./betting";
+export * from "./showdown";
