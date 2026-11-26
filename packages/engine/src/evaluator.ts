@@ -1,4 +1,4 @@
-import type { Card } from "./cards";
+import { assertValidCards, type Card } from "./cards";
 
 export const HAND_CATEGORIES = [
   "high-card",
@@ -67,12 +67,7 @@ export function evaluateHand(cards: readonly Card[]): HandValue {
   if (cards.length < 5 || cards.length > 7) {
     throw new RangeError(`evaluateHand needs 5 to 7 cards, got ${cards.length}`);
   }
-  const seen = new Set<string>();
-  for (const c of cards) {
-    const key = `${c.rank}${c.suit}`;
-    if (seen.has(key)) throw new Error(`Duplicate card: ${key}`);
-    seen.add(key);
-  }
+  assertValidCards(cards);
   let best: HandValue | undefined;
   const pick: Card[] = [];
   const walk = (start: number): void => {

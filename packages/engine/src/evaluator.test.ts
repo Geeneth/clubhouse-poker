@@ -1,5 +1,14 @@
 import { describe, expect, test } from "vitest";
-import { compareHands, evaluateHand, evaluateHoleAndBoard, type Card, type Rank, type Suit } from "./index";
+import {
+  DuplicateCardError,
+  InvalidCardError,
+  compareHands,
+  evaluateHand,
+  evaluateHoleAndBoard,
+  type Card,
+  type Rank,
+  type Suit,
+} from "./index";
 
 const R: Record<string, Rank> = { "2": 2, "3": 3, "4": 4, "5": 5, "6": 6, "7": 7, "8": 8, "9": 9, T: 10, J: 11, Q: 12, K: 13, A: 14 };
 const S: Record<string, Suit> = { c: "clubs", d: "diamonds", h: "hearts", s: "spades" };
@@ -121,5 +130,30 @@ describe("kickers and ties", () => {
   test("board straight, one player has a higher straight", () => {
     const board = cards("5s 6d 7h 8c 2d");
     expect(compareHands(evaluateHoleAndBoard(cards("9c 3d"), board), evaluateHoleAndBoard(cards("Ac Kd"), board))).toBeGreaterThan(0);
+  });
+});
+
+describe("card validation", () => {
+  const rest = cards("2d 3h 4s 5c");
+  const wrap = (c: unknown) => [c as Card, ...rest];
+  test("rejects cards that are not one of the 52", () => {
+    const bad: unknown[] = [
+      { rank: 15, suit: "clubs" },
+      { rank: 1, suit: "clubs" },
+      { rank: 2.5, suit: "clubs" },
+      { rank: "2", suit: "clubs" },
+      { rank: 6, suit: "a" },
+      { rank: NaN, suit: "clubs" },
+      null,
+    ];
+    for (const c of bad) expect(() => evaluateHand(wrap(c))).toThrow(InvalidCardError);
+  });
+  test("five cards of a made-up suit are not a straight flush", () => {
+    const five = [2, 3, 4, 5, 6].map((rank) => ({ rank, suit: "a" }) as unknown as Card);
+    expect(() => evaluateHand(five)).toThrow(InvalidCardError);
+    expect(() => evaluateHoleAndBoard(five.slice(0, 2), five.slice(2))).toThrow(InvalidCardError);
+  });
+  test("duplicates throw a typed error", () => {
+    expect(() => evaluateHand(cards("As As 9h 9c 3d"))).toThrow(DuplicateCardError);
   });
 });
