@@ -7,3 +7,4 @@ export * from "./evaluator";
 export * from "./table";
 export * from "./betting";
 export * from "./showdown";
+export * from "./game";
