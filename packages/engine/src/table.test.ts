@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import {
   cardId, createDeck, createTable, dealNextStreet, nextButton, shuffle, startHand, tableAfterHand,
-  InvalidStackError, MAX_STACK, TableError, type Seat, type Table,
+  InvalidStackError, MAX_STACK, MAX_TABLE_CHIPS, TableError, type Seat, type Table,
 } from "./index";
 
 const blinds = { small: 5, big: 10 };
@@ -118,6 +118,39 @@ describe("startHand", () => {
     const broke: Table = { ...t2, seats: t2.seats.map((s, i) => (i === 1 ? { ...s!, stack: 0 } : s)) }; // b busted in play
 
     expect(() => startHand(broke, deck(), blinds)).toThrow(TableError);
+  });
+
+  describe("checks the stacks of the table it is given", () => {
+    // Tables can be built by hand (for example for the next hand), so startHand checks them too.
+    const raw = (...stacks: unknown[]): Table =>
+      ({ seats: stacks.map((stack, i) => ({ id: `p${i}`, stack: stack as number })), button: null });
+
+    test("playtest case: two stacks of Number.MAX_SAFE_INTEGER are rejected", () => {
+      const huge = Number.MAX_SAFE_INTEGER;
+      expect(() => startHand(raw(huge, huge), deck(), blinds)).toThrow(InvalidStackError);
+    });
+
+    test("rejects fractional, negative, NaN, infinite, too large and non-number stacks", () => {
+      for (const bad of [1.5, -5, -1, NaN, Infinity, -Infinity, MAX_TABLE_CHIPS + 1, 5_000_000_000 * 4, "100", null, undefined, {}, 10n]) {
+        expect(() => startHand(raw(bad, 100), deck(), blinds), String(bad)).toThrow(InvalidStackError);
+        expect(() => startHand(raw(100, 100, bad), deck(), blinds), String(bad)).toThrow(InvalidStackError);
+      }
+      expect(() => startHand(raw(1.5, 100), deck(), blinds)).toThrow(/whole number from 0 to 16,000,000,000/);
+    });
+
+    test("rejects a table whose total is over the cap, even if each stack is under it", () => {
+      const half = MAX_TABLE_CHIPS / 2;
+      expect(() => startHand(raw(half, half, 1), deck(), blinds)).toThrow(InvalidStackError);
+      expect(() => startHand(raw(half, half, 1), deck(), blinds)).toThrow(/total of at most 16,000,000,000/);
+    });
+
+    test("accepts busted (0) seats and stacks above MAX_STACK won in play", () => {
+      expect(MAX_TABLE_CHIPS).toBe(16_000_000_000);
+      const h = startHand(raw(0, MAX_STACK, 0, MAX_STACK), deck(), blinds);
+      expect(h.players.map((p) => p.seat)).toEqual([1, 3]);
+      const big = startHand(raw(MAX_TABLE_CHIPS - 1, 1), deck(), blinds);
+      expect(total(big)).toBe(MAX_TABLE_CHIPS);
+    });
   });
 
   test("does not modify its inputs and is deterministic", () => {
