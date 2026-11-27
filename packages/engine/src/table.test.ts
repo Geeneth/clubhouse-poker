@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import {
   cardId, createDeck, createTable, dealNextStreet, nextButton, shuffle, startHand, tableAfterHand,
-  TableError, type Seat, type Table,
+  InvalidStackError, MAX_STACK, TableError, type Seat, type Table,
 } from "./index";
 
 const blinds = { small: 5, big: 10 };
@@ -22,6 +22,30 @@ describe("createTable", () => {
     expect(() => createTable([{ id: "a", stack: 1.5 }, { id: "b", stack: 5 }])).toThrow(TableError);
     expect(() => createTable([{ id: "a", stack: 5 }, { id: "a", stack: 5 }])).toThrow(TableError);
   });
+  test("stacks must be whole numbers from 1 to 1,000,000,000", () => {
+    const withStack = (stack: unknown) => () => createTable([{ id: "a", stack: stack as number }, { id: "b", stack: 5 }]);
+    expect(MAX_STACK).toBe(1_000_000_000);
+    expect(withStack(1)).not.toThrow();
+    expect(withStack(1_000_000_000)).not.toThrow();
+    for (const bad of [0, -1, -0, 1.5, 1_000_000_001, Number.MAX_SAFE_INTEGER, NaN, Infinity, -Infinity, "100", null, undefined, {}, 10n]) {
+      expect(withStack(bad), String(bad)).toThrow(InvalidStackError);
+    }
+    // the typed error is also a TableError, and says what is allowed
+    expect(withStack(0)).toThrow(TableError);
+    expect(withStack(0)).toThrow(/whole number from 1 to 1,000,000,000/);
+  });
+
+  test("playtest case: two stacks of Number.MAX_SAFE_INTEGER are rejected", () => {
+    const huge = Number.MAX_SAFE_INTEGER;
+    expect(() => createTable([{ id: "a", stack: huge }, { id: "b", stack: huge }])).toThrow(InvalidStackError);
+  });
+
+  test("8 players at the cap: chip totals stay exact", () => {
+    const h = startHand(table(8, MAX_STACK), deck(), blinds);
+    expect(total(h)).toBe(8 * MAX_STACK);
+    expect(Number.isSafeInteger(total(h))).toBe(true);
+  });
+
   test("empty seats are allowed", () => {
     expect(() => createTable([{ id: "a", stack: 5 }, null, { id: "b", stack: 5 }])).not.toThrow();
   });
@@ -90,7 +114,9 @@ describe("startHand", () => {
     expect(() => startHand(table(3), deck(), { small: 10, big: 5 })).toThrow(TableError);
     expect(() => startHand(table(3), deck(), { small: 0, big: 5 })).toThrow(TableError);
     expect(() => startHand(table(3), deck(), { small: 2.5, big: 5 })).toThrow(TableError);
-    const broke = createTable([{ id: "a", stack: 10 }, { id: "b", stack: 0 }]);
+    const t2 = createTable([{ id: "a", stack: 10 }, { id: "b", stack: 10 }]);
+    const broke: Table = { ...t2, seats: t2.seats.map((s, i) => (i === 1 ? { ...s!, stack: 0 } : s)) }; // b busted in play
+
     expect(() => startHand(broke, deck(), blinds)).toThrow(TableError);
   });
 
@@ -117,9 +143,11 @@ describe("button movement", () => {
   });
 
   test("skips empty and busted seats", () => {
-    const t0 = createTable([
-      { id: "a", stack: 50 }, null, { id: "b", stack: 0 }, { id: "c", stack: 50 }, { id: "d", stack: 50 },
+    const start = createTable([
+      { id: "a", stack: 50 }, null, { id: "b", stack: 50 }, { id: "c", stack: 50 }, { id: "d", stack: 50 },
     ]);
+    // b busted in play
+    const t0: Table = { ...start, seats: start.seats.map((s, i) => (i === 2 ? { ...s!, stack: 0 } : s)) };
     let t: Table = t0;
     const buttons: number[] = [];
     for (let i = 0; i < 4; i++) {

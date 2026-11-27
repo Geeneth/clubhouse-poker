@@ -3,6 +3,8 @@ import { deal, type Deck } from "./deck";
 
 export const MIN_PLAYERS = 2;
 export const MAX_PLAYERS = 8;
+/** Largest stack the engine accepts. 8 players at the cap stay far inside exact integer range. */
+export const MAX_STACK = 1_000_000_000;
 
 export class TableError extends Error {
   constructor(message: string) {
@@ -10,6 +12,20 @@ export class TableError extends Error {
     this.name = "TableError";
   }
 }
+
+/** A stack given to the engine is not a whole number from 1 to MAX_STACK. */
+export class InvalidStackError extends TableError {
+  readonly value: unknown;
+  constructor(id: string, stack: unknown) {
+    super(`Invalid stack for ${id}: ${String(stack)} (must be a whole number from 1 to ${MAX_STACK.toLocaleString("en-US")})`);
+    this.name = "InvalidStackError";
+    this.value = stack;
+  }
+}
+
+/** True if `n` is a stack the engine accepts as input: a whole number from 1 to MAX_STACK. */
+export const isValidStack = (n: unknown): n is number =>
+  typeof n === "number" && Number.isInteger(n) && n >= 1 && n <= MAX_STACK;
 
 /** A seated player. A stack of 0 means busted. */
 export interface Seat {
@@ -73,7 +89,10 @@ export interface HandState {
 
 const isChips = (n: unknown): n is number => typeof n === "number" && Number.isInteger(n) && n >= 0;
 
-/** Create a table. Needs 2 to 8 seated players with non-negative integer stacks and unique ids. */
+/**
+ * Create a table. Needs 2 to 8 seated players with unique ids and stacks that are whole numbers
+ * from 1 to MAX_STACK (otherwise InvalidStackError). Stacks reach 0 only through play (busting).
+ */
 export function createTable(seats: readonly (Seat | null)[]): Table {
   if (seats.length > MAX_PLAYERS) throw new TableError(`A table has at most ${MAX_PLAYERS} seats`);
   const seated = seats.filter((s): s is Seat => s !== null);
@@ -82,7 +101,7 @@ export function createTable(seats: readonly (Seat | null)[]): Table {
   }
   if (new Set(seated.map((s) => s.id)).size !== seated.length) throw new TableError("Player ids must be unique");
   for (const s of seated) {
-    if (!isChips(s.stack)) throw new TableError(`Invalid stack for ${s.id}: ${s.stack}`);
+    if (!isValidStack(s.stack)) throw new InvalidStackError(s.id, s.stack);
   }
   return { seats: seats.map((s) => (s ? { ...s } : null)), button: null };
 }
