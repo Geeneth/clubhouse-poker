@@ -8,6 +8,8 @@ import {
   InvalidCardError,
   InvalidDeckError,
   InvalidSeedError,
+  isValidSeed,
+  MAX_SEED,
   shuffle,
 } from "./index";
 
@@ -114,6 +116,106 @@ describe("validation", () => {
     for (const seed of [NaN, Infinity, -Infinity, 1.5, "1" as never]) {
       expect(() => shuffle(createDeck(), seed)).toThrow(InvalidSeedError);
     }
-    expect(() => shuffle(createDeck(), -3)).not.toThrow();
+  });
+});
+
+describe("shuffle seed range (CLB-20)", () => {
+  const order = (seed: number) => ids(shuffle(createDeck(), seed)).join();
+
+  test("MAX_SEED is 2^32 - 1", () => {
+    expect(MAX_SEED).toBe(4_294_967_295);
+    expect(MAX_SEED).toBe(2 ** 32 - 1);
+  });
+
+  test("playtest: 1 + 2^32 is rejected instead of aliasing seed 1", () => {
+    expect(() => shuffle(createDeck(), 1 + 2 ** 32)).toThrow(InvalidSeedError);
+    expect(() => shuffle(createDeck(), 1)).not.toThrow();
+  });
+
+  test("playtest: 1.5 is rejected instead of aliasing seed 1", () => {
+    expect(() => shuffle(createDeck(), 1.5)).toThrow(InvalidSeedError);
+  });
+
+  test("playtest: NaN is rejected instead of aliasing seed 0", () => {
+    expect(() => shuffle(createDeck(), NaN)).toThrow(InvalidSeedError);
+  });
+
+  test("playtest: Infinity and -Infinity are rejected", () => {
+    expect(() => shuffle(createDeck(), Infinity)).toThrow(InvalidSeedError);
+    expect(() => shuffle(createDeck(), -Infinity)).toThrow(InvalidSeedError);
+  });
+
+  test("playtest: the string 'abc' is rejected", () => {
+    expect(() => shuffle(createDeck(), "abc" as never)).toThrow(InvalidSeedError);
+  });
+
+  test("playtest: -1 is rejected instead of aliasing 2^32 - 1", () => {
+    expect(() => shuffle(createDeck(), -1)).toThrow(InvalidSeedError);
+    expect(() => shuffle(createDeck(), MAX_SEED)).not.toThrow();
+  });
+
+  test.each([
+    ["a negative number", -3],
+    ["-0.5", -0.5],
+    ["2^32", 2 ** 32],
+    ["MAX_SAFE_INTEGER", Number.MAX_SAFE_INTEGER],
+    ["a huge timestamp-like value", 1_732_700_000_000],
+    ["a numeric string", "1"],
+    ["a bigint", 1n],
+    ["null", null],
+    ["undefined", undefined],
+    ["an object", {}],
+    ["a boxed number", new Number(1)],
+    ["true", true],
+  ])("rejects %s", (_name, seed) => {
+    expect(() => shuffle(createDeck(), seed as never)).toThrow(InvalidSeedError);
+    expect(isValidSeed(seed)).toBe(false);
+  });
+
+  test("the error is typed, names itself and carries the rejected seed", () => {
+    let caught: unknown;
+    try {
+      shuffle(createDeck(), -1);
+    } catch (e) {
+      caught = e;
+    }
+    expect(caught).toBeInstanceOf(InvalidSeedError);
+    expect(caught).toBeInstanceOf(Error);
+    const err = caught as InvalidSeedError;
+    expect(err.name).toBe("InvalidSeedError");
+    expect(err.seed).toBe(-1);
+    expect(err.message).toBe("Invalid seed: -1 (must be a whole number from 0 to 4294967295)");
+  });
+
+  test("the seed is checked before the deck", () => {
+    expect(() => shuffle([], -1)).toThrow(InvalidSeedError);
+  });
+
+  test("accepts the edges 0 and 4,294,967,295", () => {
+    for (const seed of [0, 1, MAX_SEED - 1, MAX_SEED]) {
+      expect(isValidSeed(seed)).toBe(true);
+      const shuffled = shuffle(createDeck(), seed);
+      expect(new Set(ids(shuffled)).size).toBe(52);
+    }
+  });
+
+  test("-0 is accepted and is the same seed as 0", () => {
+    expect(isValidSeed(-0)).toBe(true);
+    expect(order(-0)).toBe(order(0));
+  });
+
+  test("every accepted seed gives its own deck: edges and neighbours are all distinct", () => {
+    const seeds = [0, 1, 2, 0x7fffffff, 0x80000000, MAX_SEED - 2, MAX_SEED - 1, MAX_SEED];
+    const orders = seeds.map(order);
+    expect(new Set(orders).size).toBe(seeds.length);
+  });
+
+  test("every accepted seed gives its own deck: a sweep of 2,000 seeds across the range has no repeats", () => {
+    const seen = new Set<string>();
+    const step = Math.floor(MAX_SEED / 1000);
+    const seeds: number[] = [];
+    for (let i = 0; i < 1000; i++) seeds.push(i, i * step + 1000);
+    for (const seed of seeds) seen.add(order(seed));
+    expect(seen.size).toBe(new Set(seeds).size);
   });
 });
