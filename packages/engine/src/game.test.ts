@@ -61,7 +61,7 @@ describe("nextHand", () => {
     // b's pair beats a's high card for the 100 side pot, and b's uncalled 50 comes back.
     const h1 = play(t, 1, shove);
     expect([h1.start.button, h1.start.smallBlindSeat, h1.start.bigBlindSeat]).toEqual([0, 2, 3]);
-    expect(h1.result.winnings).toEqual({ c: 150, b: 150 });
+    expect(h1.result.winnings).toEqual(new Map([["c", 150], ["b", 150]]));
     const n1 = nextHand(t, h1.result.hand);
     t = n1.table;
     expect(stacks(t)).toEqual([0, null, 150, 150]);
@@ -107,7 +107,7 @@ describe("nextHand", () => {
     t = n1.table;
     expect(total(t)).toBe(620);
     if (n1.busted.length === 0) throw new Error("seed 1 was chosen so that b loses; pick another seed");
-    expect(r1.winnings).toEqual({ c: 80 });
+    expect(r1.winnings).toEqual(new Map([["c", 80]]));
     expect(stacks(t)).toEqual([180, 0, 260, 180]);
     expect(n1.busted).toEqual(["b"]);
 

@@ -10,8 +10,8 @@ export interface Pot {
 
 export interface PotAward {
   readonly pot: Pot;
-  /** Chips paid out per player id from this pot (winners only). */
-  readonly payouts: Readonly<Record<string, number>>;
+  /** Chips paid out per player id from this pot (winners only). Keyed by opaque id. */
+  readonly payouts: ReadonlyMap<string, number>;
 }
 
 export interface ShowdownReveal {
@@ -25,8 +25,11 @@ export interface HandResult {
   readonly hand: HandState;
   /** Main pot first, then side pots. */
   readonly awards: readonly PotAward[];
-  /** Total won per player id (only players who won something). */
-  readonly winnings: Readonly<Record<string, number>>;
+  /**
+   * Total won per player id (only players who won something). A Map, so any id string
+   * (even "__proto__") is just a key and can never touch the engine's own objects.
+   */
+  readonly winnings: ReadonlyMap<string, number>;
   /** Hands shown at showdown. Empty when everyone else folded (nothing is revealed). */
   readonly revealed: readonly ShowdownReveal[];
 }
@@ -86,7 +89,7 @@ export function settleShowdown(hand: HandState): HandResult {
     .sort((a, b) => (a.seat > hand.button ? a.seat : a.seat + 1000) - (b.seat > hand.button ? b.seat : b.seat + 1000))
     .map((p) => p.id);
 
-  const winnings: Record<string, number> = {};
+  const winnings = new Map<string, number>();
   const awards: PotAward[] = pots.map((pot) => {
     let winners = [...pot.eligible];
     if (showdown) {
@@ -101,15 +104,16 @@ export function settleShowdown(hand: HandState): HandResult {
     winners.sort((a, b) => order.indexOf(a) - order.indexOf(b));
     const share = Math.floor(pot.amount / winners.length);
     const odd = pot.amount - share * winners.length;
-    const payouts: Record<string, number> = {};
+    const payouts = new Map<string, number>();
     winners.forEach((id, i) => {
-      payouts[id] = share + (i < odd ? 1 : 0);
-      winnings[id] = (winnings[id] ?? 0) + payouts[id]!;
+      const paid = share + (i < odd ? 1 : 0);
+      payouts.set(id, paid);
+      winnings.set(id, (winnings.get(id) ?? 0) + paid);
     });
     return { pot, payouts };
   });
 
-  const players = hand.players.map((p) => ({ ...p, stack: p.stack + (winnings[p.id] ?? 0), bet: 0 }));
+  const players = hand.players.map((p) => ({ ...p, stack: p.stack + (winnings.get(p.id) ?? 0), bet: 0 }));
   const revealed: ShowdownReveal[] = showdown
     ? live.map((p) => ({ id: p.id, hole: p.hole, value: values.get(p.id)! }))
     : [];
