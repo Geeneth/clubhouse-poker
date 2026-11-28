@@ -3,11 +3,60 @@ import { deal, type Deck } from "./deck";
 
 export const MIN_PLAYERS = 2;
 export const MAX_PLAYERS = 8;
+/** Largest stack the engine accepts. 8 players at the cap stay far inside exact integer range. */
+export const MAX_STACK = 1_000_000_000;
+/**
+ * Most chips a table can ever hold: every seat at MAX_STACK plus one rebuy each (also at most MAX_STACK).
+ * Stacks given to startHand (after play) may exceed MAX_STACK, but no stack and no table total may exceed this.
+ */
+export const MAX_TABLE_CHIPS = MAX_PLAYERS * MAX_STACK * 2;
 
 export class TableError extends Error {
   constructor(message: string) {
     super(message);
     this.name = "TableError";
+  }
+}
+
+const fmt = (n: number) => n.toLocaleString("en-US");
+
+/**
+ * A stack given to the engine is invalid: at createTable it must be a whole number from 1 to MAX_STACK;
+ * in a table passed to startHand it must be a whole number from 0 (busted) to MAX_TABLE_CHIPS.
+ */
+export class InvalidStackError extends TableError {
+  readonly value: unknown;
+  constructor(id: string, stack: unknown, rule = `a whole number from 1 to ${fmt(MAX_STACK)}`) {
+    super(`Invalid stack for ${id}: ${String(stack)} (must be ${rule})`);
+    this.name = "InvalidStackError";
+    this.value = stack;
+  }
+}
+
+/** True if `n` is a stack the engine accepts as input: a whole number from 1 to MAX_STACK. */
+export const isValidStack = (n: unknown): n is number =>
+  typeof n === "number" && Number.isInteger(n) && n >= 1 && n <= MAX_STACK;
+
+/** True if `n` is a stack a table may hold after play: a whole number from 0 (busted) to MAX_TABLE_CHIPS. */
+const isInPlayStack = (n: unknown): n is number =>
+  typeof n === "number" && Number.isInteger(n) && n >= 0 && n <= MAX_TABLE_CHIPS;
+
+/**
+ * Check the stacks of a table handed to startHand. Tables can be built outside createTable (for the
+ * next hand), so every stack is checked again here; the total is capped so chip arithmetic stays exact.
+ */
+function checkTableStacks(table: Table): void {
+  let total = 0;
+  table.seats.forEach((s, i) => {
+    if (!s) return;
+    const id = typeof s.id === "string" ? s.id : `seat ${i}`;
+    if (!isInPlayStack(s.stack)) {
+      throw new InvalidStackError(id, s.stack, `a whole number from 0 to ${fmt(MAX_TABLE_CHIPS)}`);
+    }
+    total += s.stack;
+  });
+  if (total > MAX_TABLE_CHIPS) {
+    throw new InvalidStackError("the table", total, `a total of at most ${fmt(MAX_TABLE_CHIPS)} chips`);
   }
 }
 
@@ -73,7 +122,10 @@ export interface HandState {
 
 const isChips = (n: unknown): n is number => typeof n === "number" && Number.isInteger(n) && n >= 0;
 
-/** Create a table. Needs 2 to 8 seated players with non-negative integer stacks and unique ids. */
+/**
+ * Create a table. Needs 2 to 8 seated players with unique ids and stacks that are whole numbers
+ * from 1 to MAX_STACK (otherwise InvalidStackError). Stacks reach 0 only through play (busting).
+ */
 export function createTable(seats: readonly (Seat | null)[]): Table {
   if (seats.length > MAX_PLAYERS) throw new TableError(`A table has at most ${MAX_PLAYERS} seats`);
   const seated = seats.filter((s): s is Seat => s !== null);
@@ -82,7 +134,7 @@ export function createTable(seats: readonly (Seat | null)[]): Table {
   }
   if (new Set(seated.map((s) => s.id)).size !== seated.length) throw new TableError("Player ids must be unique");
   for (const s of seated) {
-    if (!isChips(s.stack)) throw new TableError(`Invalid stack for ${s.id}: ${s.stack}`);
+    if (!isValidStack(s.stack)) throw new InvalidStackError(s.id, s.stack);
   }
   return { seats: seats.map((s) => (s ? { ...s } : null)), button: null };
 }
@@ -129,6 +181,8 @@ function checkDeck(deck: Deck): void {
 
 /**
  * Start a hand: move the button, post blinds, deal two hole cards to each active player.
+ * Every seated stack must be a whole number from 0 (busted) to MAX_TABLE_CHIPS, and the table
+ * total at most MAX_TABLE_CHIPS (otherwise InvalidStackError).
  * The (already shuffled) deck is passed in, so this stays pure.
  * Heads-up, the dealer posts the small blind and acts first preflop.
  * No burn cards are used.
@@ -137,6 +191,7 @@ export function startHand(table: Table, deck: Deck, blinds: Blinds): HandState {
   if (!isChips(blinds.small) || !isChips(blinds.big) || blinds.small < 1 || blinds.big < blinds.small) {
     throw new TableError("Blinds must be positive integers with big >= small");
   }
+  checkTableStacks(table);
   checkDeck(deck);
   const button = nextButton(table);
   const seatCount = table.seats.length;
